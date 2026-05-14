@@ -4,6 +4,9 @@ from fastapi.responses import JSONResponse
 from PIL import Image
 import asyncio
 import io
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os
 
 from model import (
     predict_streetclip,
@@ -60,3 +63,11 @@ async def predict(file: UploadFile = File(...)):
         **result,
         "streetclip_predictions": clip_preds,
     })
+
+
+if os.path.exists("frontend"):
+    app.mount("/static", StaticFiles(directory="frontend"), name="static")
+
+    @app.get("/app")
+    def serve_frontend():
+        return FileResponse("frontend/index.html")
