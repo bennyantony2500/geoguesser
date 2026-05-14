@@ -6,4 +6,4 @@ pillow
 python-multipart
 easyocr
 httpx
-mumpy<2
+numpy<2
