@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GeoGuesser AI — Ensemble</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #13131a;
+      --surface2: #1c1c28;
+      --border: #2a2a3d;
+      --accent: #00e5ff;
+      --accent2: #ff6b35;
+      --ocr-color: #b8ff65;
+      --text: #e8e8f0;
+      --muted: #6b6b8a;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px 80px;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,229,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,229,255,0.025) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      top: -200px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 700px;
+      height: 700px;
+      background: radial-gradient(circle, rgba(0,229,255,0.06) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 780px;
+    }
+
+    header { text-align: center; margin-bottom: 48px; }
+
+    .logo-tag {
+      display: inline-block;
+      font-size: 10px;
+      letter-spacing: 0.3em;
+      color: var(--accent);
+      border: 1px solid rgba(0,229,255,0.3);
+      padding: 4px 14px;
+      margin-bottom: 18px;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(34px, 6vw, 62px);
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    h1 .geo { color: var(--accent); }
+    h1 .ai-tag {
+      font-size: 0.32em;
+      color: var(--accent2);
+      vertical-align: super;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+    }
+
+    .subtitle { margin-top: 10px; color: var(--muted); font-size: 11px; letter-spacing: 0.08em; }
+
+    .model-pills {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+
+    .pill {
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      padding: 4px 10px;
+      border-radius: 2px;
+      text-transform: uppercase;
+      border: 1px solid;
+    }
+
+    .pill.clip  { color: var(--accent);    border-color: rgba(0,229,255,0.3); }
+    .pill.ocr   { color: var(--ocr-color); border-color: rgba(184,255,101,0.3); }
+    .pill.web   { color: var(--accent2);   border-color: rgba(255,107,53,0.3); }
+
+    .upload-zone {
+      background: var(--surface);
+      border: 1.5px dashed var(--border);
+      border-radius: 4px;
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .upload-zone:hover, .upload-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(0,229,255,0.03);
+    }
+
+    .upload-zone input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+
+    .upload-zone h2 {
+      font-family: 'Syne', sans-serif;
+      font-size: 18px; font-weight: 700; margin-bottom: 8px;
+    }
+    .upload-zone p { color: var(--muted); font-size: 12px; }
+    .upload-icon { font-size: 40px; margin-bottom: 16px; display: block; }
+
+    .preview-section { margin-top: 24px; display: none; }
+    .preview-section.visible { display: block; }
+
+    .preview-label {
+      font-size: 10px; letter-spacing: 0.2em; color: var(--muted);
+      text-transform: uppercase; margin-bottom: 10px;
+    }
+
+    .preview-img-wrap {
+      position: relative;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 4px; overflow: hidden;
+      max-height: 340px; display: flex; align-items: center; justify-content: center;
+    }
+
+    .preview-img-wrap img { max-width: 100%; max-height: 340px; object-fit: contain; display: block; }
+
+    .change-btn {
+      position: absolute; top: 12px; right: 12px;
+      background: rgba(10,10,15,0.85); border: 1px solid var(--border);
+      color: var(--text); font-family: 'Space Mono', monospace;
+      font-size: 11px; padding: 6px 12px; cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .change-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .analyze-btn {
+      margin-top: 20px; width: 100%;
+      background: var(--accent); color: #000;
+      border: none; font-family: 'Syne', sans-serif;
+      font-size: 15px; font-weight: 800;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 16px; cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .analyze-btn:hover { opacity: 0.88; }
+    .analyze-btn:active { transform: scale(0.99); }
+    .analyze-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .loading { display: none; margin-top: 32px; }
+    .loading.visible { display: block; }
+
+    .loading-stages {
+      display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;
+    }
+
+    .stage {
+      display: flex; align-items: center; gap: 12px;
+      font-size: 11px; letter-spacing: 0.08em; color: var(--muted);
+      transition: color 0.3s;
+    }
+    .stage.active { color: var(--text); }
+    .stage.done   { color: var(--accent); }
+
+    .stage-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--border); flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    .stage.active .stage-dot { background: var(--accent2); animation: pulse 0.8s infinite alternate; }
+    .stage.done   .stage-dot { background: var(--accent); }
+
+    @keyframes pulse { from { opacity: 0.4; } to { opacity: 1; } }
+
+    .loader-bar-wrap {
+      background: var(--surface2); height: 3px; border-radius: 2px; overflow: hidden;
+    }
+    .loader-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--ocr-color), var(--accent2));
+      animation: load 1.8s ease-in-out infinite;
+      width: 40%;
+    }
+    @keyframes load { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
+
+    .error-box {
+      display: none; margin-top: 20px; padding: 14px 16px;
+      background: rgba(255,107,53,0.08); border: 1px solid rgba(255,107,53,0.3);
+      color: var(--accent2); font-size: 12px; border-radius: 2px;
+    }
+    .error-box.visible { display: block; }
+
+    .results { display: none; margin-top: 32px; }
+    .results.visible { display: block; }
+
+    .signal-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+
+    @media (max-width: 560px) { .signal-row { grid-template-columns: 1fr; } }
+
+    .signal-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 16px;
+    }
+
+    .signal-panel-header {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .signal-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .ocr-dot   { background: var(--ocr-color); }
+    .web-dot   { background: var(--accent2); }
+
+    .signal-title {
+      font-size: 10px; letter-spacing: 0.18em;
+      text-transform: uppercase; color: var(--muted);
+    }
+
+    .ocr-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+
+    .ocr-tag {
+      background: rgba(184,255,101,0.08);
+      border: 1px solid rgba(184,255,101,0.2);
+      color: var(--ocr-color);
+      font-size: 11px; padding: 3px 8px; border-radius: 2px;
+      word-break: break-all;
+    }
+
+    .no-signal { color: var(--muted); font-size: 12px; font-style: italic; }
+
+    .web-country {
+      font-family: 'Syne', sans-serif;
+      font-size: 15px; font-weight: 700; color: var(--accent2);
+      margin-bottom: 8px;
+    }
+
+    .web-snippet {
+      font-size: 11px; color: var(--muted);
+      line-height: 1.6; word-break: break-word;
+    }
+
+    .ensemble-header {
+      display: flex; align-items: baseline; gap: 12px; margin-bottom: 18px;
+    }
+
+    .ensemble-header h3 {
+      font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800;
+    }
+
+    .top-badge {
+      background: var(--accent); color: #000;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+      padding: 3px 9px; text-transform: uppercase;
+    }
+
+    .result-row {
+      display: grid;
+      grid-template-columns: 28px 1fr 110px;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .result-row:last-child { border-bottom: none; }
+
+    .rank { font-size: 11px; color: var(--muted); text-align: right; }
+    .country-info { display: flex; flex-direction: column; gap: 3px; }
+
+    .country-name {
+      font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700;
+    }
+    .result-row:first-child .country-name { color: var(--accent); }
+
+    .country-tag {
+      font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase;
+      color: var(--accent2);
+    }
+
+    .bar-pct-wrap {
+      display: flex; flex-direction: column; align-items: flex-end; gap: 5px;
+    }
+
+    .pct-label { font-size: 12px; color: var(--text); }
+    .result-row:first-child .pct-label { color: var(--accent); font-weight: 700; }
+
+    .bar-track {
+      width: 100%; height: 4px; background: var(--surface2); border-radius: 2px; overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%; background: var(--muted); border-radius: 2px;
+      transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .result-row:first-child .bar-fill {
+      background: linear-gradient(90deg, var(--accent), #00c4d9);
+    }
+
+    footer {
+      margin-top: 60px; text-align: center;
+      font-size: 11px; color: var(--muted); letter-spacing: 0.07em;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <header>
+      <div class="logo-tag">Ensemble AI &nbsp;·&nbsp; v2</div>
+      <h1>
+        <span class="geo">Geo</span>Guesser
+        <span class="ai-tag">AI</span>
+      </h1>
+      <p class="subtitle">Upload any street-view image — three models collaborate to guess the country</p>
+      <div class="model-pills">
+        <span class="pill clip">StreetCLIP</span>
+        <span class="pill ocr">EasyOCR</span>
+        <span class="pill web">Web Search</span>
+      </div>
+    </header>
+
+    <!-- Upload Zone -->
+    <div class="upload-zone" id="uploadZone">
+      <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" />
+      <span class="upload-icon">🌍</span>
+      <h2>Drop an image here</h2>
+      <p>or click to browse &nbsp;·&nbsp; JPG / PNG / WEBP &nbsp;·&nbsp; max 10 MB</p>
+    </div>
+
+    <!-- Preview -->
+    <div class="preview-section" id="previewSection">
+      <div class="preview-label">Selected image</div>
+      <div class="preview-img-wrap">
+        <img id="previewImg" src="" alt="Preview" />
+        <button class="change-btn" onclick="resetAll()">X Change</button>
+      </div>
+      <button class="analyze-btn" id="analyzeBtn" onclick="analyzeImage()">
+        Run Ensemble Analysis
+      </button>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading" id="loading">
+      <div class="loading-stages">
+        <div class="stage" id="stage-clip">
+          <div class="stage-dot"></div>StreetCLIP visual analysis...
+        </div>
+        <div class="stage" id="stage-ocr">
+          <div class="stage-dot"></div>EasyOCR text extraction...
+        </div>
+        <div class="stage" id="stage-web">
+          <div class="stage-dot"></div>Web search for OCR tokens...
+        </div>
+        <div class="stage" id="stage-fuse">
+          <div class="stage-dot"></div>Fusing ensemble signals...
+        </div>
+      </div>
+      <div class="loader-bar-wrap"><div class="loader-bar"></div></div>
+    </div>
+
+    <!-- Error -->
+    <div class="error-box" id="errorBox"></div>
+
+    <!-- Results -->
+    <div class="results" id="results">
+      <div class="signal-row">
+        <div class="signal-panel">
+          <div class="signal-panel-header">
+            <div class="signal-dot ocr-dot"></div>
+            <span class="signal-title">Text detected by OCR</span>
+          </div>
+          <div id="ocrPanel"></div>
+        </div>
+        <div class="signal-panel">
+          <div class="signal-panel-header">
+            <div class="signal-dot web-dot"></div>
+            <span class="signal-title">Web Search Result</span>
+          </div>
+          <div id="webPanel"></div>
+        </div>
+      </div>
+
+      <div class="ensemble-header">
+        <h3 id="topGuessLabel">Top Guess: —</h3>
+        <span class="top-badge">Ensemble</span>
+      </div>
+      <div id="resultsList"></div>
+    </div>
+
+    <footer>
+      Models: <a href="https://huggingface.co/geolocal/StreetCLIP" target="_blank">StreetCLIP</a>
+      &nbsp;+&nbsp; <a href="https://github.com/JaidedAI/EasyOCR" target="_blank">EasyOCR</a>
+      &nbsp;+&nbsp; DuckDuckGo Search &nbsp;·&nbsp; Backend: FastAPI
+    </footer>
+  </div>
+
+  <script>
+    const API_URL = "http://127.0.0.1:8000/predict";
+    let selectedFile = null;
+
+    const uploadZone  = document.getElementById("uploadZone");
+    const fileInput   = document.getElementById("fileInput");
+    const previewSec  = document.getElementById("previewSection");
+    const previewImg  = document.getElementById("previewImg");
+    const analyzeBtn  = document.getElementById("analyzeBtn");
+    const loading     = document.getElementById("loading");
+    const results     = document.getElementById("results");
+    const errorBox    = document.getElementById("errorBox");
+    const resultsList = document.getElementById("resultsList");
+    const topGuessLbl = document.getElementById("topGuessLabel");
+    const ocrPanel    = document.getElementById("ocrPanel");
+    const webPanel    = document.getElementById("webPanel");
+
+    uploadZone.addEventListener("dragover", e => { e.preventDefault(); uploadZone.classList.add("dragover"); });
+    uploadZone.addEventListener("dragleave", () => uploadZone.classList.remove("dragover"));
+    uploadZone.addEventListener("drop", e => {
+      e.preventDefault();
+      uploadZone.classList.remove("dragover");
+      const f = e.dataTransfer.files[0];
+      if (f) handleFile(f);
+    });
+    fileInput.addEventListener("change", () => {
+      if (fileInput.files[0]) handleFile(fileInput.files[0]);
+    });
+
+    function handleFile(file) {
+      selectedFile = file;
+      const reader = new FileReader();
+      reader.onload = e => {
+        previewImg.src = e.target.result;
+        uploadZone.style.display = "none";
+        previewSec.classList.add("visible");
+        hideResults();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function resetAll() {
+      selectedFile = null;
+      fileInput.value = "";
+      previewImg.src = "";
+      uploadZone.style.display = "";
+      previewSec.classList.remove("visible");
+      hideResults();
+    }
+
+    function hideResults() {
+      results.classList.remove("visible");
+      loading.classList.remove("visible");
+      errorBox.classList.remove("visible");
+      errorBox.textContent = "";
+      ["clip","ocr","web","fuse"].forEach(s => {
+        document.getElementById("stage-" + s).classList.remove("active","done");
+      });
+    }
+
+    function setStage(name) {
+      const stages = ["clip","ocr","web","fuse"];
+      stages.forEach((s, i) => {
+        const el = document.getElementById("stage-" + s);
+        const idx = stages.indexOf(name);
+        if (i < idx)        { el.classList.add("done");   el.classList.remove("active"); }
+        else if (i === idx) { el.classList.add("active"); el.classList.remove("done"); }
+        else                { el.classList.remove("active","done"); }
+      });
+    }
+
+    async function analyzeImage() {
+      if (!selectedFile) return;
+      hideResults();
+      loading.classList.add("visible");
+      analyzeBtn.disabled = true;
+
+      setStage("clip"); await delay(600);
+      setStage("ocr");  await delay(500);
+      setStage("web");  await delay(400);
+      setStage("fuse");
+
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+
+      try {
+        const response = await fetch(API_URL, { method: "POST", body: formData });
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.detail || "Server error");
+        }
+        const data = await response.json();
+        ["clip","ocr","web","fuse"].forEach(s =>
+          document.getElementById("stage-" + s).classList.replace("active","done")
+        );
+        await delay(300);
+        renderResults(data);
+      } catch (err) {
+        errorBox.textContent = "Error: " + (err.message || "Cannot reach backend. Is uvicorn running?");
+        errorBox.classList.add("visible");
+      } finally {
+        loading.classList.remove("visible");
+        analyzeBtn.disabled = false;
+      }
+    }
+
+    function renderResults(data) {
+      const texts = data.ocr_texts || [];
+      if (texts.length) {
+        ocrPanel.innerHTML = '<div class="ocr-tags">' +
+          texts.map(t => '<span class="ocr-tag">' + escHtml(t) + '</span>').join("") +
+          '</div>';
+      } else {
+        ocrPanel.innerHTML = '<span class="no-signal">No readable text found</span>';
+      }
+
+      if (data.ocr_country) {
+        webPanel.innerHTML =
+          '<div class="web-country">📍 ' + escHtml(data.ocr_country) + '</div>' +
+          '<div class="web-snippet">' + escHtml(data.ocr_snippet || 'Matched from: "' + data.ocr_source_text + '"') + '</div>';
+      } else if (texts.length) {
+        webPanel.innerHTML = '<span class="no-signal">Text found but no country matched</span>';
+      } else {
+        webPanel.innerHTML = '<span class="no-signal">No OCR text to search</span>';
+      }
+
+      const preds = data.predictions || [];
+      topGuessLbl.textContent = "Top Guess: " + (data.top_guess || "—");
+      resultsList.innerHTML = "";
+
+      const maxConf = preds[0] ? preds[0].confidence : 1;
+      preds.forEach(function(p, i) {
+        const barW = Math.round((p.confidence / maxConf) * 100);
+        const isOcrMatch = p.country === data.ocr_country;
+        const row = document.createElement("div");
+        row.className = "result-row";
+        row.innerHTML =
+          '<span class="rank">#' + (i+1) + '</span>' +
+          '<div class="country-info">' +
+            '<span class="country-name">' + escHtml(p.country) + '</span>' +
+            (isOcrMatch ? '<span class="country-tag">OCR + Web boosted</span>' : '') +
+          '</div>' +
+          '<div class="bar-pct-wrap">' +
+            '<span class="pct-label">' + p.confidence.toFixed(2) + '%</span>' +
+            '<div class="bar-track">' +
+              '<div class="bar-fill" style="width:0%" data-width="' + barW + '%"></div>' +
+            '</div>' +
+          '</div>';
+        resultsList.appendChild(row);
+      });
+
+      results.classList.add("visible");
+      requestAnimationFrame(function() {
+        document.querySelectorAll(".bar-fill").forEach(function(el) {
+          el.style.width = el.dataset.width;
+        });
+      });
+    }
+
+    function escHtml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    function delay(ms) {
+      return new Promise(function(r) { setTimeout(r, ms); });
+    }
+  </script>
+</body>
+</html>
